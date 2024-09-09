@@ -1,6 +1,6 @@
 mod admin;
 
-use admin::channel;
+use admin::{createchannel, deletechannel};
 use colored::Colorize;
 use dotenv::dotenv;
 use poise::serenity_prelude::{self as serenity, futures::lock::Mutex, Channel};
@@ -9,6 +9,7 @@ use std::{env, sync::Arc};
 #[allow(dead_code)]
 struct Data {
     ticket_channel: Arc<Mutex<Option<Channel>>>,
+    current_ticket_id: Arc<Mutex<Option<i32>>>,
 }
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -30,12 +31,13 @@ async fn main() {
 
     let data = Data {
         ticket_channel: Arc::new(Mutex::new(None)),
+        current_ticket_id: Arc::new(Mutex::new(Some(1))),
     };
     startup_message("Global variables initialized");
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![channel()],
+            commands: vec![createchannel(), deletechannel()],
             prefix_options: poise::PrefixFrameworkOptions {
                 prefix: Some("!".into()),
                 ..Default::default()
