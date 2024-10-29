@@ -1,6 +1,7 @@
 mod admin;
+mod moderator;
 
-use admin::{createchannel, deletechannel};
+use admin::{createchannel, deletechannel, set_ticket_category, simulate_ticket};
 use colored::Colorize;
 use dotenv::dotenv;
 use poise::serenity_prelude::{self as serenity, futures::lock::Mutex, Channel};
@@ -37,7 +38,12 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![createchannel(), deletechannel()],
+            commands: vec![
+                createchannel(),
+                deletechannel(),
+                set_ticket_category(),
+                simulate_ticket(),
+            ],
             prefix_options: poise::PrefixFrameworkOptions {
                 prefix: Some("!".into()),
                 ..Default::default()
