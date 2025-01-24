@@ -11,7 +11,7 @@ use crate::Error;
 pub async fn link(ctx: crate::Context<'_>) -> Result<(), Error> {
     let author = ctx.author();
 
-    let test = CreateEmbed::new()
+    let link_embed = CreateEmbed::new()
     .title("🌐 Link Your Discord Account")
     .description("🚀 Connect your Discord account to the SwampHacks portal to unlock all features!")
     .url(format!(
@@ -26,7 +26,7 @@ pub async fn link(ctx: crate::Context<'_>) -> Result<(), Error> {
     .timestamp(Timestamp::now()); // Adds the current timestamp
 
     let message = CreateReply {
-        embeds: vec![test],
+        embeds: vec![link_embed],
         components: Some(vec![CreateActionRow::Buttons(vec![
             CreateButton::new_link(format!(
                 "http://localhost:3000/hacker/link/discord?snowflake={}",
