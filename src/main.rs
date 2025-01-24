@@ -1,9 +1,11 @@
 mod admin;
+mod general;
 mod moderator;
 
 use admin::{createchannel, deletechannel, set_ticket_category, simulate_ticket};
 use colored::Colorize;
 use dotenv::dotenv;
+use general::link;
 use poise::serenity_prelude::{self as serenity, futures::lock::Mutex, Channel};
 use std::{env, sync::Arc};
 
@@ -43,6 +45,7 @@ async fn main() {
                 deletechannel(),
                 set_ticket_category(),
                 simulate_ticket(),
+                link(),
             ],
             prefix_options: poise::PrefixFrameworkOptions {
                 prefix: Some("!".into()),
@@ -79,12 +82,18 @@ async fn main() {
     client.unwrap().start().await.unwrap();
 }
 
-#[allow(unused_variables)]
+#[allow(unused_variables, clippy::single_match)]
 async fn event_handler(
     ctx: &serenity::Context,
     event: &serenity::FullEvent,
     _framework: poise::FrameworkContext<'_, Data, Error>,
     data: &Data,
 ) -> Result<(), Error> {
+    match event {
+        serenity::FullEvent::Ready { data_about_bot, .. } => {
+            println!("Logged in as {}", data_about_bot.user.name);
+        }
+        _ => {}
+    }
     Ok(())
 }
