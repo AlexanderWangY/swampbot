@@ -1,21 +1,13 @@
 mod admin;
 mod general;
 mod models;
-mod moderator;
 
 use admin::init_sync;
 use colored::Colorize;
 use dotenv::dotenv;
 use general::link;
 use models::{RoleErrorResponse, RoleSuccessResponse};
-use poise::serenity_prelude::{
-    self as serenity, CacheHttp, CreateInteractionResponseFollowup,
-    CreateInteractionResponseMessage, CreateMessage, Interaction, Role, RoleId,
-};
-use reqwest::{
-    header::{HeaderMap, HeaderValue, AUTHORIZATION},
-    StatusCode,
-};
+use poise::serenity_prelude::{self as serenity, CacheHttp, Interaction, RoleId};
 use std::env;
 
 #[allow(dead_code)]
@@ -25,6 +17,7 @@ type Error = Box<dyn std::error::Error + Send + Sync>;
 #[allow(dead_code)]
 type Context<'a> = poise::Context<'a, Data, Error>;
 
+// This isn't acutally functional, just fun to see.
 fn startup_message(str: &str) {
     println!("[{}] {}", "OK".green(), str);
 }
@@ -90,79 +83,109 @@ async fn event_handler(
         serenity::FullEvent::Ready { data_about_bot, .. } => {
             println!("Logged in as {}", data_about_bot.user.name);
         }
-        serenity::FullEvent::InteractionCreate { interaction } => {
-            if let Interaction::Component(component_interaction) = interaction.clone() {
-                let message = serenity::CreateInteractionResponse::Message(
-                    CreateInteractionResponseMessage::new()
-                        .content(String::from("Fetching up to date roles..."))
-                        .ephemeral(true),
-                );
 
-                component_interaction
-                    .create_response(ctx.http(), message)
-                    .await?;
-
-                // Fetch roles
-
-                let author_id = component_interaction.user.id;
-
-                let secret_key: String =
-                    env::var("SECRET_ACCESS_KEY").expect("No token found in environment variables");
-
-                let url = format!("http://localhost:3000/api/discord/{}/sync", author_id);
-
-                let mut headers = HeaderMap::new();
-
-                headers.insert(
-                    AUTHORIZATION,
-                    HeaderValue::from_str(&format!("Bot {}", secret_key))?,
-                );
-
-                let client = reqwest::Client::new();
-
-                let response = client.get(&url).headers(headers).send().await?;
-
-                let guild_id = component_interaction.guild_id.unwrap();
-
-                let guild = ctx.http().get_guild(guild_id).await?;
-
-                match response.status() {
-                    StatusCode::OK => {
-                        let result: RoleSuccessResponse = response.json().await?;
-
-                        if result.roles.is_empty() {
-                            println!("No roles");
-                        } else {
-                            for role in result.roles.iter() {
-                                // parse u64 from string
-                                let role_id_num = role.parse::<u64>().unwrap();
-
-                                if let Some(role) = guild.roles.get(&RoleId::new(role_id_num)) {
-                                    println!("Giving role: {}", role.name);
-                                }
-                            }
-                        }
-                    }
-                    StatusCode::INTERNAL_SERVER_ERROR => {
-                        println!("500: Internal Server Error, Please check server logs");
-                    }
-                    _ => {
-                        let result: RoleErrorResponse = response.json().await?;
-
-                        println!("Error: {}", result.error);
-                    }
+        serenity::FullEvent::InteractionCreate {
+            interaction: Interaction::Component(component_interaction),
+        } => {
+            match component_interaction.data.custom_id.as_str() {
+                "sync" => handle_sync_roles(ctx, component_interaction).await?,
+                _ => {
+                    // Handle other button interactions or do nothing
                 }
-
-                let done_message = CreateInteractionResponseFollowup::new()
-                    .content(String::from("Fetched roles. You are now up to date."))
-                    .ephemeral(true);
-
-                component_interaction
-                    .create_followup(ctx.http(), done_message)
-                    .await?;
             }
         }
         _ => {}
     }
+    Ok(())
+}
+
+async fn handle_sync_roles(
+    ctx: &serenity::Context,
+    component_interaction: &serenity::ComponentInteraction,
+) -> Result<(), Error> {
+    // Acknowledge the button interaction immediately with an ephemeral response
+    component_interaction
+        .create_response(
+            ctx.http(),
+            serenity::CreateInteractionResponse::Message(
+                serenity::CreateInteractionResponseMessage::new()
+                    .content("Fetching up-to-date roles...")
+                    .ephemeral(true),
+            ),
+        )
+        .await?;
+
+    // Fetch roles from external API
+    let author_id = component_interaction.user.id;
+    let url = format!("http://localhost:3000/api/discord/{}/sync", author_id);
+    let token = std::env::var("DISCORD_TOKEN").expect("No token found in environment variables");
+
+    let response = reqwest::Client::new()
+        .get(&url)
+        .header(reqwest::header::AUTHORIZATION, format!("Bot {}", token))
+        .send()
+        .await?;
+
+    // Ensure the interaction is happening in a guild context
+    let guild_id = component_interaction
+        .guild_id
+        .ok_or_else(|| serenity::Error::Other("Guild ID is required for syncing roles"))?;
+    let guild = ctx.http().get_guild(guild_id).await?;
+
+    match response.status() {
+        reqwest::StatusCode::OK => {
+            let result: RoleSuccessResponse = response.json().await?;
+            let mut add_roles: Vec<RoleId> = vec![];
+            for role in result.roles {
+                if let Ok(role_id_num) = role.parse::<u64>() {
+                    if let Some(role) = guild.roles.get(&RoleId::new(role_id_num)) {
+                        add_roles.push(role.id);
+                    }
+                }
+            }
+
+            let member = ctx
+                .http()
+                .get_member(guild_id, component_interaction.user.id)
+                .await?;
+
+            member.add_roles(ctx.http(), &add_roles).await?;
+            // Send a follow-up message indicating completion
+            component_interaction
+                .create_followup(
+                    ctx.http(),
+                    serenity::CreateInteractionResponseFollowup::new()
+                        .content("Fetched roles. You are now up to date.")
+                        .ephemeral(true),
+                )
+                .await?;
+        }
+        reqwest::StatusCode::INTERNAL_SERVER_ERROR => {
+            println!("500: Internal Server Error. Check server logs.");
+            // Send a follow-up message indicating completion
+            component_interaction
+                .create_followup(
+                    ctx.http(),
+                    serenity::CreateInteractionResponseFollowup::new()
+                        .content("Something went wrong... Try again later!")
+                        .ephemeral(true),
+                )
+                .await?;
+        }
+        _ => {
+            let error: RoleErrorResponse = response.json().await?;
+            println!("Error: {}", error.error);
+            // Send a follow-up message indicating completion
+            component_interaction
+                .create_followup(
+                    ctx.http(),
+                    serenity::CreateInteractionResponseFollowup::new()
+                        .content("An error has occured, contact server admins for help.")
+                        .ephemeral(true),
+                )
+                .await?;
+        }
+    }
+
     Ok(())
 }
