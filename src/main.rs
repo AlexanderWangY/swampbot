@@ -2,16 +2,26 @@ mod admin;
 mod general;
 mod models;
 
-use admin::init_sync;
+use admin::{init_sync, set_image_channel};
 use colored::Colorize;
 use dotenv::dotenv;
 use general::link;
 use models::{RoleErrorResponse, RoleSuccessResponse};
-use poise::serenity_prelude::{self as serenity, CacheHttp, Interaction, RoleId};
+use poise::serenity_prelude::{
+    self as serenity, futures::lock::Mutex, CacheHttp, ChannelId, Interaction, Message, RoleId,
+};
+use serde::Serialize;
 use std::env;
 
+#[derive(Serialize)]
+struct PrintImageRequest {
+    image_url: String,
+}
+
 #[allow(dead_code)]
-struct Data {}
+struct Data {
+    image_channel: Mutex<Option<ChannelId>>,
+}
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 #[allow(dead_code)]
@@ -31,12 +41,11 @@ async fn main() {
     let intents = serenity::GatewayIntents::non_privileged();
     startup_message("Initialized gateway intents");
 
-    let data = Data {};
     startup_message("Global variables initialized");
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![init_sync(), link()],
+            commands: vec![init_sync(), link(), set_image_channel()],
             prefix_options: poise::PrefixFrameworkOptions {
                 prefix: Some("!".into()),
                 ..Default::default()
@@ -49,7 +58,9 @@ async fn main() {
         .setup(|ctx, _ready, framework| {
             Box::pin(async move {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
-                Ok(data)
+                Ok(Data {
+                    image_channel: Mutex::new(None),
+                })
             })
         })
         .build();
@@ -91,6 +102,41 @@ async fn event_handler(
                 "sync" => handle_sync_roles(ctx, component_interaction).await?,
                 _ => {
                     // Handle other button interactions or do nothing
+                }
+            }
+        }
+
+        serenity::FullEvent::Message { new_message } => {
+            if let Some(image_channel_id) = *data.image_channel.lock().await {
+                if image_channel_id == new_message.channel_id {
+                    let message = ctx
+                        .http()
+                        .get_message(image_channel_id, new_message.id)
+                        .await?;
+
+                    if let Some(image) = find_first_image(&message) {
+                        let payload = PrintImageRequest {
+                            image_url: image.url,
+                        };
+
+                        println!("Print image right now... Give us a few moments...");
+                        let res = reqwest::Client::new()
+                            .post("http://0.0.0.0:8080/print-image")
+                            .json(&payload)
+                            .send()
+                            .await;
+
+                        match res {
+                            Ok(response) => {
+                                if response.status().is_success() {
+                                    println!("Printed image!");
+                                } else {
+                                    eprintln!("Something went wrong: {:?}", response.status());
+                                }
+                            }
+                            Err(e) => eprintln!("Request failed: {}", e),
+                        }
+                    }
                 }
             }
         }
@@ -188,4 +234,25 @@ async fn handle_sync_roles(
     }
 
     Ok(())
+}
+
+struct Image {
+    url: String,
+}
+
+fn find_first_image(message: &Message) -> Option<Image> {
+    message
+        .attachments
+        .iter()
+        .find(|attachment| {
+            attachment
+                .content_type
+                .as_ref()
+                .map_or(false, |ct| ct.starts_with("image/"))
+        })
+        .and_then(|attachment| {
+            attachment.height.map(|_| Image {
+                url: attachment.url.clone(),
+            })
+        })
 }

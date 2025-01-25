@@ -1,7 +1,5 @@
 use poise::{
-    serenity_prelude::{
-        CreateActionRow, CreateButton, CreateEmbed, CreateEmbedFooter, ReactionType, Timestamp,
-    },
+    serenity_prelude::{CreateActionRow, CreateButton, CreateEmbed, CreateEmbedFooter, Timestamp},
     CreateReply,
 };
 

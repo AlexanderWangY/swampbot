@@ -1,6 +1,7 @@
 use poise::{
     serenity_prelude::{
-        CreateActionRow, CreateButton, CreateEmbed, CreateEmbedFooter, CreateMessage, Timestamp,
+        Channel, CreateActionRow, CreateButton, CreateEmbed, CreateEmbedFooter, CreateMessage,
+        Timestamp,
     },
     CreateReply,
 };
@@ -48,6 +49,43 @@ pub async fn init_sync(ctx: crate::Context<'_>) -> Result<(), Error> {
     };
 
     ctx.send(reply).await?;
+
+    Ok(())
+}
+
+#[poise::command(prefix_command, slash_command, required_permissions = "ADMINISTRATOR")]
+pub async fn set_image_channel(
+    ctx: crate::Context<'_>,
+    #[description = "What channel for image printing"] channel: Channel,
+) -> Result<(), Error> {
+    if channel.clone().category().is_some() {
+        let reply = CreateReply {
+            content: Some(String::from(
+                "You can not select a category as your image channel...",
+            )),
+            ephemeral: Some(true),
+            ..Default::default()
+        };
+
+        ctx.send(reply).await?;
+    } else {
+        // This is a valid channel
+        let channel_id = channel.id();
+
+        let mut image_channel = ctx.data().image_channel.lock().await;
+        *image_channel = Some(channel_id);
+
+        let reply = CreateReply {
+            content: Some(format!(
+                "Channel with id {} set as image channel",
+                channel_id
+            )),
+            ephemeral: Some(true),
+            ..Default::default()
+        };
+
+        ctx.send(reply).await?;
+    }
 
     Ok(())
 }
