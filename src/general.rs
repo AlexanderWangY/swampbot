@@ -13,7 +13,7 @@ pub async fn link(ctx: crate::Context<'_>) -> Result<(), Error> {
     .title("🌐 Link Your Discord Account")
     .description("🚀 Connect your Discord account to the SwampHacks portal to unlock all features!")
     .url(format!(
-        "http://localhost:3000/hacker/link/discord?snowflake={}",
+        "https://app.swamphacks.com/hacker/link/discord?snowflake={}",
         author.id
     ))
     .thumbnail(author.avatar_url().unwrap_or(author.default_avatar_url()))
@@ -27,7 +27,7 @@ pub async fn link(ctx: crate::Context<'_>) -> Result<(), Error> {
         embeds: vec![link_embed],
         components: Some(vec![CreateActionRow::Buttons(vec![
             CreateButton::new_link(format!(
-                "http://localhost:3000/hacker/link/discord?snowflake={}",
+                "https://app.swamphacks.com/hacker/link/discord?snowflake={}",
                 author.id
             ))
             .label("Link Discord")

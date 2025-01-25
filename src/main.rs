@@ -163,7 +163,7 @@ async fn handle_sync_roles(
 
     // Fetch roles from external API
     let author_id = component_interaction.user.id;
-    let url = format!("http://localhost:3000/api/discord/{}/sync", author_id);
+    let url = format!("https://app.swamphacks.com/api/discord/{}/sync", author_id);
     let token = std::env::var("DISCORD_TOKEN").expect("No token found in environment variables");
 
     let response = reqwest::Client::new()
