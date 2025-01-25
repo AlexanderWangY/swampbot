@@ -16,6 +16,7 @@ use std::env;
 #[derive(Serialize)]
 struct PrintImageRequest {
     image_url: String,
+    name: String
 }
 
 #[allow(dead_code)]
@@ -115,8 +116,11 @@ async fn event_handler(
                         .await?;
 
                     if let Some(image) = find_first_image(&message) {
+                        let name = new_message.author.name.clone();
+                        
                         let payload = PrintImageRequest {
                             image_url: image.url,
+                            name: name
                         };
 
                         println!("Print image right now... Give us a few moments...");
@@ -166,12 +170,13 @@ async fn handle_sync_roles(
     let url = format!("https://app.swamphacks.com/api/discord/{}/sync", author_id);
     let token = std::env::var("DISCORD_TOKEN").expect("No token found in environment variables");
 
+    println!("Getting roles");
     let response = reqwest::Client::new()
         .get(&url)
         .header(reqwest::header::AUTHORIZATION, format!("Bot {}", token))
         .send()
         .await?;
-
+    println!("Got roles");
     // Ensure the interaction is happening in a guild context
     let guild_id = component_interaction
         .guild_id
@@ -190,12 +195,19 @@ async fn handle_sync_roles(
                 }
             }
 
+            println!("Finished processing {} roles", add_roles.len());
+
             let member = ctx
                 .http()
                 .get_member(guild_id, component_interaction.user.id)
                 .await?;
 
-            member.add_roles(ctx.http(), &add_roles).await?;
+            println!("Got member!");
+
+            match member.add_roles(ctx.http(), &add_roles).await {
+                Ok(()) => println!("Added roles successfully"),
+                Err(e) => eprintln!("Error: {:?}", e),
+            }
             // Send a follow-up message indicating completion
             component_interaction
                 .create_followup(
@@ -226,7 +238,7 @@ async fn handle_sync_roles(
                 .create_followup(
                     ctx.http(),
                     serenity::CreateInteractionResponseFollowup::new()
-                        .content("An error has occured, contact server admins for help.")
+                        .content("You have not linked your discord account. Please use `/link` and follow the steps.")
                         .ephemeral(true),
                 )
                 .await?;

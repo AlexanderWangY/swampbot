@@ -20,6 +20,7 @@ pub async fn link(ctx: crate::Context<'_>) -> Result<(), Error> {
     .color(0x1E90FF) // A nice blue color
     .field("Why Link?", "🔗  Linking your discord account to your SwampHacks portal allows automatic role syncing and more!", false)
     .field("Quick Steps", "1️⃣ Click the button below.\n2️⃣ Authorize your Discord account.\n3️⃣ You're all set!", false)
+    .field("Tip", "Use a laptop to complete this as mobile devices are a bit finnicky when opening the link.", false)
     .footer(CreateEmbedFooter::new("SwampHacks"))
     .timestamp(Timestamp::now()); // Adds the current timestamp
 

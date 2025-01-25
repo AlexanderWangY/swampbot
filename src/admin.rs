@@ -8,7 +8,7 @@ use poise::{
 
 use crate::Error;
 
-#[poise::command(prefix_command, slash_command, required_permissions = "ADMINISTRATOR")]
+#[poise::command(prefix_command, slash_command, required_permissions = "MANAGE_CHANNELS")]
 pub async fn init_sync(ctx: crate::Context<'_>) -> Result<(), Error> {
     let channel = ctx.channel_id();
 
@@ -53,7 +53,7 @@ pub async fn init_sync(ctx: crate::Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-#[poise::command(prefix_command, slash_command, required_permissions = "ADMINISTRATOR")]
+#[poise::command(prefix_command, slash_command, required_permissions = "MANAGE_CHANNELS")]
 pub async fn set_image_channel(
     ctx: crate::Context<'_>,
     #[description = "What channel for image printing"] channel: Channel,
